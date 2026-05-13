@@ -1,0 +1,59 @@
+name: Sync Frontend from NewAPI Upstream (Classic Only)
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add upstream remote (idempotent)
+        run: |
+          if git remote | grep -q upstream; then
+            git remote set-url upstream https://github.com/QuantumNous/new-api.git
+          else
+            git remote add upstream https://github.com/QuantumNous/new-api.git
+          fi
+          git fetch upstream main
+
+      - name: Sync web directory from upstream
+        run: |
+          git checkout upstream/main -- web/
+          # 比较暂存区（上游内容）与 HEAD，判断是否有差异
+          if git diff --quiet HEAD -- web/; then
+            echo "NO_CHANGES=true" >> $GITHUB_ENV
+          else
+            echo "NO_CHANGES=false" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Bun (if changes)
+        if: env.NO_CHANGES == 'false' && hashFiles('web/classic/package.json') != ''
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install and build classic (if changes)
+        if: env.NO_CHANGES == 'false' && hashFiles('web/classic/package.json') != ''
+        working-directory: web/classic
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Commit and push changes (if any)
+        if: env.NO_CHANGES == 'false'
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/
+          git commit -m "chore: sync web/ from upstream and build classic [skip ci]"
+          git push
