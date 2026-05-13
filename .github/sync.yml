@@ -1,7 +1,7 @@
 # .github/sync.yml
 QuantumNous/new-api:  # 上游源仓库
   - source: web/       # 源目录
-    dest: /         # 目标目录
+    dest: web/         # 目标目录
   # 如果还有需要同步的根目录文件，可以按下面的格式添加
   # - source: package.json
   #   dest: package.json
