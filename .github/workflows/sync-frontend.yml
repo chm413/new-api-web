@@ -1,15 +1,14 @@
 # .github/workflows/sync-frontend.yml
-name: Sync and Build Frontend
+name: Sync Frontend from NewAPI Upstream
 
 on:
-  # 定时触发：每6小时检查一次上游更新（可选）
   schedule:
+    # 每6小时运行一次（可根据需要调整）
     - cron: '0 */6 * * *'
-  # 手动触发
-  workflow_dispatch:
+  workflow_dispatch:   # 允许手动触发
 
 permissions:
-  contents: write
+  contents: write       # 需要推送代码的权限
 
 jobs:
   sync-and-build:
@@ -19,46 +18,45 @@ jobs:
       - name: Checkout your repository
         uses: actions/checkout@v4
         with:
-          # 必须使用个人访问令牌（PAT）才能触发后续 push 事件，避免循环
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Add upstream repository
+      - name: Add upstream remote
         run: |
           git remote add upstream https://github.com/QuantumNous/new-api.git
           git fetch upstream main
 
-      - name: Sync web directory from upstream
+      - name: Sync web directory (force overwrite)
         run: |
-          # 使用 sparse checkout 方式仅拉取 web 目录（保留历史）
+          # 使用 checkout 命令直接覆盖本地 web 目录
           git checkout upstream/main -- web/
-          # 检查是否有变更
+          # 检测是否有变更（只检测 web 目录）
           if git diff --quiet -- web/; then
             echo "NO_CHANGES=true" >> $GITHUB_ENV
           else
             echo "NO_CHANGES=false" >> $GITHUB_ENV
           fi
 
-      - name: Setup Bun (only if changes)
+      - name: Setup Bun (if changes)
         if: env.NO_CHANGES == 'false'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
-      - name: Install dependencies
+      - name: Install dependencies (if changes)
         if: env.NO_CHANGES == 'false'
         working-directory: ./web
         run: bun install
 
-      - name: Build frontend
+      - name: Build frontend (if changes)
         if: env.NO_CHANGES == 'false'
         working-directory: ./web
         run: bun run build
 
-      - name: Commit and push changes
+      - name: Commit and push changes (if any)
         if: env.NO_CHANGES == 'false'
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git add web/
-          git commit -m "chore: sync upstream web changes and build frontend [skip ci]" || echo "No changes to commit"
+          git commit -m "chore: sync web/ from upstream NewAPI and build [skip ci]"
           git push
