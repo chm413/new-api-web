@@ -1,19 +1,16 @@
-# .github/workflows/sync-frontend.yml
 name: Sync Frontend from NewAPI Upstream
 
 on:
   schedule:
-    # 每6小时运行一次（可根据需要调整）
     - cron: '0 */6 * * *'
-  workflow_dispatch:   # 允许手动触发
+  workflow_dispatch:
 
 permissions:
-  contents: write       # 需要推送代码的权限
+  contents: write
 
 jobs:
   sync-and-build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout your repository
         uses: actions/checkout@v4
@@ -22,15 +19,17 @@ jobs:
 
       - name: Add upstream remote
         run: |
-          git remote add upstream https://github.com/QuantumNous/new-api.git
+          if git remote | grep -q upstream; then
+            git remote set-url upstream https://github.com/QuantumNous/new-api.git
+          else
+            git remote add upstream https://github.com/QuantumNous/new-api.git
+          fi
           git fetch upstream main
 
       - name: Sync web directory (force overwrite)
         run: |
-          # 使用 checkout 命令直接覆盖本地 web 目录
           git checkout upstream/main -- web/
-          # 检测是否有变更（只检测 web 目录）
-          if git diff --quiet -- web/; then
+          if git diff --quiet HEAD -- web/; then
             echo "NO_CHANGES=true" >> $GITHUB_ENV
           else
             echo "NO_CHANGES=false" >> $GITHUB_ENV
