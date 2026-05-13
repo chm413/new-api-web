@@ -1,79 +1,64 @@
 # .github/workflows/sync-frontend.yml
 name: Sync and Build Frontend
 
-# 触发条件:
 on:
-  # (关键) 避免循环触发: 提交到 main 分支时触发，但跳过由本 Action 自身产生的提交。
-  push:
-    branches:
-      - main
-  # (推荐) 定时触发: 例如每6小时检查一次上游更新，作为保障。
+  # 定时触发：每6小时检查一次上游更新（可选）
   schedule:
     - cron: '0 */6 * * *'
-  # 支持手动运行
+  # 手动触发
   workflow_dispatch:
 
-# 需要读写仓库内容的权限
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   sync-and-build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出代码
-      - name: Checkout repository
+      - name: Checkout your repository
         uses: actions/checkout@v4
-
-      # 2. 从上游同步指定目录
-      - name: Sync files from upstream
-        # ❗ 使用同步专用 Action
-        uses: BetaHuhn/repo-file-sync-action@v1
         with:
-          # (必须) 使用 GitHub 自动生成的 GITHUB_TOKEN 即可
-          GH_PAT: ${{ secrets.GITHUB_TOKEN }}
-          # (可选) 配合定时任务，强制覆盖本地更改
-          OVERWRITE: "true"
-          # (重要) 同步完成后，创建一个新 Commit 并推送
-          COMMIT_EACH: "true"
-        # (重要) 同步步骤完成后生成 Commit，用于后续检测
+          # 必须使用个人访问令牌（PAT）才能触发后续 push 事件，避免循环
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3. 检查 'web' 目录是否真的有变化
-      - name: Check for changes in web directory
-        id: check_changes
+      - name: Add upstream repository
         run: |
-          # 获取当前 HEAD 和上一次 Commit 之间的差异，并检查 'web' 目录
-          if git diff --quiet HEAD^1 HEAD -- web/; then
-            echo "changed=false" >> $GITHUB_OUTPUT
+          git remote add upstream https://github.com/QuantumNous/new-api.git
+          git fetch upstream main
+
+      - name: Sync web directory from upstream
+        run: |
+          # 使用 sparse checkout 方式仅拉取 web 目录（保留历史）
+          git checkout upstream/main -- web/
+          # 检查是否有变更
+          if git diff --quiet -- web/; then
+            echo "NO_CHANGES=true" >> $GITHUB_ENV
           else
-            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "NO_CHANGES=false" >> $GITHUB_ENV
           fi
 
-      # 4. (条件执行) 如果有前端变化，则进行构建
-      - name: Setup Bun
-        if: steps.check_changes.outputs.changed == 'true'
+      - name: Setup Bun (only if changes)
+        if: env.NO_CHANGES == 'false'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
       - name: Install dependencies
-        if: steps.check_changes.outputs.changed == 'true'
+        if: env.NO_CHANGES == 'false'
         working-directory: ./web
         run: bun install
 
       - name: Build frontend
-        if: steps.check_changes.outputs.changed == 'true'
+        if: env.NO_CHANGES == 'false'
         working-directory: ./web
         run: bun run build
 
-      # 5. 提交编译后的产物
-      - name: Commit built files
-        if: steps.check_changes.outputs.changed == 'true'
+      - name: Commit and push changes
+        if: env.NO_CHANGES == 'false'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add web/dist
-          git commit -m "chore: build frontend assets [skip ci]" || echo "No changes to commit"
+          git add web/
+          git commit -m "chore: sync upstream web changes and build frontend [skip ci]" || echo "No changes to commit"
           git push
