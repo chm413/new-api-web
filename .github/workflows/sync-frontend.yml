@@ -1,4 +1,4 @@
-name: Sync Frontend from NewAPI Upstream (Classic Only)
+name: Sync Frontend from NewAPI Upstream (Fixed)
 
 on:
   schedule:
@@ -16,36 +16,41 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-      - name: Add upstream remote (idempotent)
+      - name: Fetch upstream
         run: |
-          if git remote | grep -q upstream; then
-            git remote set-url upstream https://github.com/QuantumNous/new-api.git
-          else
-            git remote add upstream https://github.com/QuantumNous/new-api.git
-          fi
+          git remote add upstream https://github.com/QuantumNous/new-api.git || git remote set-url upstream https://github.com/QuantumNous/new-api.git
           git fetch upstream main
 
-      - name: Sync web directory from upstream
+      - name: Sync web directory from upstream (force overwrite)
         run: |
           git checkout upstream/main -- web/
-          # 比较暂存区（上游内容）与 HEAD，判断是否有差异
-          if git diff --quiet HEAD -- web/; then
+          # 使用 git status 检测变化（包括未跟踪文件）
+          if [ -z "$(git status --porcelain -- web/)" ]; then
             echo "NO_CHANGES=true" >> $GITHUB_ENV
           else
             echo "NO_CHANGES=false" >> $GITHUB_ENV
           fi
 
       - name: Setup Bun (if changes)
-        if: env.NO_CHANGES == 'false' && hashFiles('web/classic/package.json') != ''
+        if: env.NO_CHANGES == 'false'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
-      - name: Install and build classic (if changes)
-        if: env.NO_CHANGES == 'false' && hashFiles('web/classic/package.json') != ''
-        working-directory: web/classic
+      - name: Find and build frontend (if changes)
+        if: env.NO_CHANGES == 'false'
+        working-directory: .  # 从根目录开始查找
         run: |
+          # 在 web/ 下查找第一个 package.json 所在的目录
+          PKG_DIR=$(find web -type f -name package.json -printf '%h\n' | head -n 1)
+          if [ -z "$PKG_DIR" ]; then
+            echo "❌ No package.json found under web/, aborting build."
+            exit 1
+          fi
+          echo "✅ Found package.json in: $PKG_DIR"
+          cd "$PKG_DIR"
           bun install --frozen-lockfile
           bun run build
 
@@ -55,5 +60,5 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git add web/
-          git commit -m "chore: sync web/ from upstream and build classic [skip ci]"
+          git commit -m "chore: sync web/ from upstream and build frontend [skip ci]" || echo "Nothing to commit"
           git push
