@@ -1,4 +1,4 @@
-name: Sync Frontend from NewAPI Upstream (Fixed)
+name: Sync Frontend from NewAPI Upstream
 
 on:
   schedule:
@@ -18,74 +18,44 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Fetch upstream
+      - name: Add upstream remote
         run: |
           git remote add upstream https://github.com/QuantumNous/new-api.git || git remote set-url upstream https://github.com/QuantumNous/new-api.git
           git fetch upstream main
 
-      - name: Sync web directory from upstream (force overwrite)
+      - name: Sync web directory from upstream
         run: |
           git checkout upstream/main -- web/
-          # 检测变更（包括未跟踪文件）
           if [ -z "$(git status --porcelain -- web/)" ]; then
             echo "NO_CHANGES=true" >> $GITHUB_ENV
           else
             echo "NO_CHANGES=false" >> $GITHUB_ENV
           fi
 
-      - name: Setup Bun (if changes)
+      - name: Setup Bun
         if: env.NO_CHANGES == 'false'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
-      - name: Find and build frontend (if changes)
+      - name: Find and build frontend
         if: env.NO_CHANGES == 'false'
         run: |
-          # 查找 web/ 下第一个 package.json 所在的目录
           PKG_DIR=$(find web -type f -name package.json -printf '%h\n' | head -n 1)
           if [ -z "$PKG_DIR" ]; then
-            echo "❌ No package.json found under web/, aborting build."
+            echo "No package.json found under web/, aborting build."
             exit 1
           fi
-          echo "✅ Found package.json in: $PKG_DIR"
+          echo "Found package.json in: $PKG_DIR"
           cd "$PKG_DIR"
-          # 移除 --frozen-lockfile，允许更新 lockfile
           bun install
           bun run build
 
-      - name: Commit and push changes (if any)
+      - name: Commit and push
         if: env.NO_CHANGES == 'false'
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git add web/
-          git commit -m "chore: sync web/ from upstream and build frontend [skip ci]" || echo "Nothing to commit"
-          git push        if: env.NO_CHANGES == 'false'
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
-      - name: Find and build frontend (if changes)
-        if: env.NO_CHANGES == 'false'
-        working-directory: .  # 从根目录开始查找
-        run: |
-          # 在 web/ 下查找第一个 package.json 所在的目录
-          PKG_DIR=$(find web -type f -name package.json -printf '%h\n' | head -n 1)
-          if [ -z "$PKG_DIR" ]; then
-            echo "❌ No package.json found under web/, aborting build."
-            exit 1
-          fi
-          echo "✅ Found package.json in: $PKG_DIR"
-          cd "$PKG_DIR"
-          bun install --frozen-lockfile
-          bun run build
-
-      - name: Commit and push changes (if any)
-        if: env.NO_CHANGES == 'false'
-        run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add web/
-          git commit -m "chore: sync web/ from upstream and build frontend [skip ci]" || echo "Nothing to commit"
+          git commit -m "chore: sync web/ from upstream and build [skip ci]" || echo "No changes to commit"
           git push
