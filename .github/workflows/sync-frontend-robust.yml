@@ -1,0 +1,74 @@
+name: Sync Frontend from NewAPI Upstream (Robust)
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0   # 完整克隆，避免浅克隆问题
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/QuantumNous/new-api.git || git remote set-url upstream https://github.com/QuantumNous/new-api.git
+          git fetch upstream main
+
+      - name: Extract upstream web directory to a temp folder
+        run: |
+          # 方法1：使用 git archive 导出上游的 web 目录
+          mkdir -p upstream-web
+          git archive --format=tar upstream/main web/ | tar -x -C upstream-web --strip-components=1
+          # 此时 upstream-web 目录下就是上游的 web/ 内容
+          ls -la upstream-web/
+
+      - name: Replace local web directory with upstream version
+        run: |
+          # 删除当前的 web 目录（如果存在）
+          rm -rf web/
+          # 复制上游的 web 内容到 web/
+          cp -r upstream-web web/
+          # 检查是否有变更
+          if git diff --quiet -- web/; then
+            echo "NO_CHANGES=true" >> $GITHUB_ENV
+          else
+            echo "NO_CHANGES=false" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Bun (if changes)
+        if: env.NO_CHANGES == 'false'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies and build (if changes)
+        if: env.NO_CHANGES == 'false'
+        working-directory: ./web
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Commit and push (if changes)
+        if: env.NO_CHANGES == 'false'
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/
+          git commit -m "chore: sync web/ from upstream and build [skip ci]"
+          git push
+
+      - name: Debug (always run)
+        if: always()
+        run: |
+          echo "=== Final web directory contents ==="
+          ls -la web/ || echo "web/ directory does not exist"
+          git status
