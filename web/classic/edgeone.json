@@ -1,0 +1,8 @@
+{
+    "rewrites": [
+      {
+        "source": "/api/*",
+        "destination": "https://aiai42.mccom.xyz/v1/"
+      }
+    ]
+}
