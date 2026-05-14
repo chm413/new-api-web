@@ -2,7 +2,7 @@
     "rewrites": [
       {
         "source": "/api/*",
-        "destination": "https://aiai42.mccom.xyz/api/"
+        "destination": "https://aiai42.mccom.xyz/api/:splat"
       }
     ]
 }
