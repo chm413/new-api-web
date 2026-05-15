@@ -94,6 +94,7 @@ export async function onRequest(context: { request: Request; env: any; waitUntil
         body: isIdempotent ? undefined : request.body,
         redirect: 'follow',
         signal: controller.signal,
+        decompress: "manual"
       };
       const response = await fetch(targetUrl.toString(), fetchOptions);
       clearTimeout(timeoutId);
