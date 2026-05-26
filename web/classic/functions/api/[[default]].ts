@@ -2,7 +2,7 @@
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const backendUrl = env.NEWAPI_BACKEND_URL || 'https://aiai42.mccom.xyz/api/';
+  const backendUrl = env.NEWAPI_BACKEND_URL;
   
   const url = new URL(request.url);
   const pathAfterApi = url.pathname.replace(/^\/api\//, '');
