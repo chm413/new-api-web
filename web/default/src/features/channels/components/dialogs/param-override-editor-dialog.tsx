@@ -36,16 +36,8 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Dialog } from '@/components/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/design-system/button'
+import { Input } from '@/components/design-system/input'
 import {
   Select,
   SelectContent,
@@ -53,7 +45,15 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/design-system/select'
+import { Dialog } from '@/components/dialog'
+import { Badge } from '@/components/ui/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -291,12 +291,29 @@ const GEMINI_IMAGE_4K_TEMPLATE = {
   ],
 }
 
+// Keep in sync with upstream Codex request headers:
+// https://github.com/openai/codex/commit/7c7b4861d88960f7e3bd5b7f30f8351be666dd84
+// https://github.com/openai/codex/commit/14df0e8833aad0d6d78287954b61ffac67af936c
+// https://github.com/openai/codex/commit/ebdd8795e924a8149b616e46ca2ed7848c207a4b
 const CODEX_CLI_HEADER_PASSTHROUGH_HEADERS = [
   'Originator',
   'Session_id',
+  'Thread_id',
+  'Session-Id',
+  'Thread-Id',
+  'X-Client-Request-Id',
   'User-Agent',
   'X-Codex-Beta-Features',
+  'X-Codex-Turn-State',
   'X-Codex-Turn-Metadata',
+  'X-Codex-Window-Id',
+  'X-Codex-Parent-Thread-Id',
+  // 'X-Codex-Installation-Id',
+  'X-OpenAI-Subagent',
+  'X-OpenAI-Memgen-Request',
+  // 'X-OAI-Attestation',
+  'X-ResponsesAPI-Include-Timing-Metrics',
+  'X-OpenAI-Internal-Codex-Responses-Lite',
 ]
 
 const CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS = [
@@ -321,9 +338,15 @@ const buildPassHeadersTemplate = (headers: string[]) => ({
   ],
 })
 
-const CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
-  CODEX_CLI_HEADER_PASSTHROUGH_HEADERS
-)
+const CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE = {
+  operations: [
+    {
+      mode: 'pass_headers',
+      value: [...CODEX_CLI_HEADER_PASSTHROUGH_HEADERS],
+      keep_origin: true,
+    },
+  ],
+}
 const CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
   CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS
 )
@@ -1725,7 +1748,6 @@ export function ParamOverrideEditorDialog(
           <Button
             type='button'
             variant={editMode === 'visual' ? 'default' : 'outline'}
-            size='sm'
             onClick={switchToVisualMode}
           >
             {t('Visual')}
@@ -1733,7 +1755,6 @@ export function ParamOverrideEditorDialog(
           <Button
             type='button'
             variant={editMode === 'json' ? 'default' : 'outline'}
-            size='sm'
             onClick={switchToJsonMode}
           >
             {t('JSON Text')}
@@ -1756,7 +1777,7 @@ export function ParamOverrideEditorDialog(
               setTemplatePresetKey(v || 'operations_default')
             }
           >
-            <SelectTrigger className='h-8 w-[220px]'>
+            <SelectTrigger className='w-[220px]'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
@@ -1772,7 +1793,6 @@ export function ParamOverrideEditorDialog(
           <Button
             type='button'
             variant='outline'
-            size='sm'
             onClick={() => fillTemplate('fill')}
           >
             {t('Fill Template')}
@@ -1780,17 +1800,11 @@ export function ParamOverrideEditorDialog(
           <Button
             type='button'
             variant='ghost'
-            size='sm'
             onClick={() => fillTemplate('append')}
           >
             {t('Append Template')}
           </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            onClick={resetEditorState}
-          >
+          <Button type='button' variant='ghost' onClick={resetEditorState}>
             {t('Reset')}
           </Button>
         </div>
@@ -1830,7 +1844,7 @@ export function ParamOverrideEditorDialog(
                   <Button
                     type='button'
                     variant='ghost'
-                    size='sm'
+                    size='icon-sm'
                     onClick={addOperation}
                   >
                     <Plus className='h-4 w-4' />
@@ -1860,7 +1874,7 @@ export function ParamOverrideEditorDialog(
                       value={operationSearch}
                       onChange={(e) => setOperationSearch(e.target.value)}
                       placeholder={t('Search rules...')}
-                      className='h-8 pl-8 text-xs'
+                      className='pl-8 text-xs'
                     />
                   </div>
                 </div>
@@ -2012,12 +2026,7 @@ export function ParamOverrideEditorDialog(
           /* JSON mode */
           <div className='p-4'>
             <div className='mb-2 flex items-center gap-2'>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={formatJson}
-              >
+              <Button type='button' variant='outline' onClick={formatJson}>
                 {t('Format')}
               </Button>
               <span className='text-muted-foreground text-xs'>
@@ -2121,7 +2130,6 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
             <Button
               type='button'
               variant='ghost'
-              size='sm'
               onClick={() => ruleEditorProps.duplicateOperation(operation.id)}
             >
               <Copy className='mr-1 h-3.5 w-3.5' />
@@ -2130,7 +2138,6 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
             <Button
               type='button'
               variant='ghost'
-              size='sm'
               className='text-destructive hover:text-destructive'
               onClick={() => ruleEditorProps.removeOperation(operation.id)}
             >
@@ -2159,7 +2166,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                 })
               }
             >
-              <SelectTrigger className='h-9'>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -2186,7 +2193,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   })
                 }
                 placeholder={getModePathPlaceholder(mode)}
-                className='h-9'
+                className=''
               />
             </div>
           )}
@@ -2220,7 +2227,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
               'e.g. Clean tool parameters to avoid upstream validation errors'
             )}
             maxLength={180}
-            className='h-9'
+            className=''
           />
         </div>
 
@@ -2251,8 +2258,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   <Button
                     type='button'
                     variant='ghost'
-                    size='sm'
-                    className='text-muted-foreground h-auto px-1.5 py-0.5 text-xs'
+                    className='text-muted-foreground h-auto px-1.5 py-0.5 text-xs sm:h-auto'
                     onClick={() => {
                       try {
                         const parsed = JSON.parse(operation.value_text)
@@ -2322,7 +2328,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                     })
                   }
                   placeholder={getModeFromPlaceholder(mode)}
-                  className='h-9'
+                  className=''
                 />
               </div>
             )}
@@ -2339,7 +2345,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                     })
                   }
                   placeholder={getModeToPlaceholder(mode)}
-                  className='h-9'
+                  className=''
                 />
               </div>
             )}
@@ -2364,7 +2370,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   })
                 }
               >
-                <SelectTrigger className='h-7 w-[120px] text-xs'>
+                <SelectTrigger className='w-[120px]'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -2381,8 +2387,6 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   <Button
                     type='button'
                     variant='ghost'
-                    size='sm'
-                    className='h-7 text-xs'
                     onClick={ruleEditorProps.expandAllConditions}
                   >
                     <ChevronDown className='mr-1 h-3 w-3' />
@@ -2391,8 +2395,6 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   <Button
                     type='button'
                     variant='ghost'
-                    size='sm'
-                    className='h-7 text-xs'
                     onClick={ruleEditorProps.collapseAllConditions}
                   >
                     <ChevronUp className='mr-1 h-3 w-3' />
@@ -2403,8 +2405,6 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
               <Button
                 type='button'
                 variant='outline'
-                size='sm'
-                className='h-7 text-xs'
                 onClick={() => ruleEditorProps.addCondition(operation.id)}
               >
                 <Plus className='mr-1 h-3 w-3' />
@@ -2498,8 +2498,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
               <Button
                 type='button'
                 variant='ghost'
-                size='sm'
-                className='text-destructive hover:text-destructive h-7 text-xs'
+                className='text-destructive hover:text-destructive'
                 onClick={() =>
                   conditionEditorProps.removeCondition(
                     conditionEditorProps.operationId,
@@ -2524,7 +2523,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                     )
                   }
                   placeholder='model'
-                  className='h-8 text-xs'
+                  className='text-xs'
                 />
               </div>
               <div className='space-y-1'>
@@ -2546,7 +2545,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                     )
                   }
                 >
-                  <SelectTrigger className='h-8 text-xs'>
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
@@ -2574,7 +2573,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                     )
                   }
                   placeholder='gpt'
-                  className='h-8 text-xs'
+                  className='text-xs'
                 />
               </div>
             </div>
@@ -2641,8 +2640,6 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
           <Button
             type='button'
             variant={draft.simpleMode ? 'default' : 'outline'}
-            size='sm'
-            className='h-7 text-xs'
             onClick={() =>
               returnErrorEditorProps.updateDraft(
                 returnErrorEditorProps.operationId,
@@ -2655,8 +2652,6 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
           <Button
             type='button'
             variant={draft.simpleMode ? 'outline' : 'default'}
-            size='sm'
-            className='h-7 text-xs'
             onClick={() =>
               returnErrorEditorProps.updateDraft(
                 returnErrorEditorProps.operationId,
@@ -2707,7 +2702,7 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                   )
                 }
                 placeholder='400'
-                className='h-8 text-xs'
+                className='text-xs'
               />
             </div>
             <div className='space-y-1'>
@@ -2723,7 +2718,7 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                   )
                 }
                 placeholder='forced_bad_request'
-                className='h-8 text-xs'
+                className='text-xs'
               />
             </div>
             <div className='space-y-1'>
@@ -2739,7 +2734,7 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                   )
                 }
                 placeholder='invalid_request_error'
-                className='h-8 text-xs'
+                className='text-xs'
               />
             </div>
           </div>
@@ -2750,8 +2745,6 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
             <Button
               type='button'
               variant={draft.skipRetry ? 'default' : 'outline'}
-              size='sm'
-              className='h-7 text-xs'
               onClick={() =>
                 returnErrorEditorProps.updateDraft(
                   returnErrorEditorProps.operationId,
@@ -2764,8 +2757,6 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
             <Button
               type='button'
               variant={draft.skipRetry ? 'outline' : 'default'}
-              size='sm'
-              className='h-7 text-xs'
               onClick={() =>
                 returnErrorEditorProps.updateDraft(
                   returnErrorEditorProps.operationId,
@@ -2801,8 +2792,6 @@ function ReturnErrorEditor(returnErrorEditorProps: ReturnErrorEditorProps) {
                 key={preset.code}
                 type='button'
                 variant='outline'
-                size='sm'
-                className='h-6 text-xs'
                 onClick={() =>
                   returnErrorEditorProps.updateDraft(
                     returnErrorEditorProps.operationId,
@@ -2859,8 +2848,6 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
           <Button
             type='button'
             variant={draft.simpleMode ? 'default' : 'outline'}
-            size='sm'
-            className='h-7 text-xs'
             onClick={() =>
               pruneObjectsEditorProps.updateDraft(
                 pruneObjectsEditorProps.operationId,
@@ -2873,8 +2860,6 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
           <Button
             type='button'
             variant={draft.simpleMode ? 'outline' : 'default'}
-            size='sm'
-            className='h-7 text-xs'
             onClick={() =>
               pruneObjectsEditorProps.updateDraft(
                 pruneObjectsEditorProps.operationId,
@@ -2898,7 +2883,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
             )
           }
           placeholder='redacted_thinking'
-          className='h-8 text-xs'
+          className='text-xs'
         />
       </div>
 
@@ -2924,7 +2909,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                   )
                 }
               >
-                <SelectTrigger className='h-8 text-xs'>
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -2945,8 +2930,6 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                 <Button
                   type='button'
                   variant={draft.recursive ? 'default' : 'outline'}
-                  size='sm'
-                  className='h-8 text-xs'
                   onClick={() =>
                     pruneObjectsEditorProps.updateDraft(
                       pruneObjectsEditorProps.operationId,
@@ -2959,8 +2942,6 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                 <Button
                   type='button'
                   variant={draft.recursive ? 'outline' : 'default'}
-                  size='sm'
-                  className='h-8 text-xs'
                   onClick={() =>
                     pruneObjectsEditorProps.updateDraft(
                       pruneObjectsEditorProps.operationId,
@@ -2982,8 +2963,6 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
               <Button
                 type='button'
                 variant='outline'
-                size='sm'
-                className='h-7 text-xs'
                 onClick={() =>
                   pruneObjectsEditorProps.addRule(
                     pruneObjectsEditorProps.operationId
@@ -3014,8 +2993,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                       <Button
                         type='button'
                         variant='ghost'
-                        size='sm'
-                        className='text-destructive hover:text-destructive h-6 text-xs'
+                        className='text-destructive hover:text-destructive'
                         onClick={() =>
                           pruneObjectsEditorProps.removeRule(
                             pruneObjectsEditorProps.operationId,
@@ -3042,7 +3020,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                             )
                           }
                           placeholder='type'
-                          className='h-7 text-xs'
+                          className='text-xs'
                         />
                       </div>
                       <div className='space-y-0.5'>
@@ -3066,7 +3044,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                             )
                           }
                         >
-                          <SelectTrigger className='h-7 text-xs'>
+                          <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent alignItemWithTrigger={false}>
@@ -3094,7 +3072,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                             )
                           }
                           placeholder='redacted_thinking'
-                          className='h-7 text-xs'
+                          className='text-xs'
                         />
                       </div>
                     </div>
@@ -3181,7 +3159,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
                 )
               }
             >
-              <SelectTrigger className='h-8 w-[110px] text-xs'>
+              <SelectTrigger className='w-[110px]'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -3208,7 +3186,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
                 )
               }
               placeholder='session_id'
-              className='h-8 text-xs'
+              className='text-xs'
             />
           </div>
         </div>
@@ -3236,7 +3214,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
                 )
               }
             >
-              <SelectTrigger className='h-8 w-[110px] text-xs'>
+              <SelectTrigger className='w-[110px]'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -3263,7 +3241,7 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
                 )
               }
               placeholder='prompt_cache_key'
-              className='h-8 text-xs'
+              className='text-xs'
             />
           </div>
         </div>
@@ -3285,8 +3263,6 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
             key={preset.label}
             type='button'
             variant='outline'
-            size='sm'
-            className='h-6 text-xs'
             onClick={() =>
               syncFieldsEditorProps.updateOperation(
                 syncFieldsEditorProps.operationId,
